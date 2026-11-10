@@ -22,6 +22,10 @@ import { getRandom } from '@renderer/utils/index'
 import { addListMusics, removeListMusics } from '@renderer/store/list/action'
 import { loveList } from '@renderer/store/list/state'
 import { addDislikeInfo } from '@renderer/core/dislikeList'
+import { getDownloadList } from '@renderer/store/download/action'
+import { getDownloadFilePath } from '@renderer/utils/music'
+import { buildSavePath } from '@renderer/store/download/utils'
+import { getPlaybackLocation, resolveDownloadedPath } from './preferDownload'
 // import { checkMusicFileAvailable } from '@renderer/utils/music'
 
 let gettingUrlId = ''
@@ -93,6 +97,18 @@ const getMusicPlayUrl = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListIt
   setAllStatus(window.i18n.t('player__getting_url'))
   if (appSetting['player.autoSkipOnError']) addLoadTimeout()
 
+  if (!isRefresh && !('progress' in musicInfo) && musicInfo.source !== 'local') {
+    try {
+      const path = await resolveDownloadedPath(musicInfo, await getDownloadList(), async download => getDownloadFilePath(download, buildSavePath(download)))
+      if (path) {
+        if (window.lx.isPlayedStop || diffCurrentMusicInfo(musicInfo)) return null
+        return path
+      }
+    } catch (error) {
+      console.warn('Unable to check local downloads; falling back to online playback', error)
+    }
+  }
+
   // const type = getPlayType(appSetting['player.highQuality'], musicInfo)
   let toggleMusicInfo = ('progress' in musicInfo ? musicInfo.metadata.musicInfo : musicInfo).meta.toggleMusicInfo
 
@@ -141,15 +157,17 @@ export const setMusicUrl = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem
       return
     }
     setResource(url)
+    const location = getPlaybackLocation(url)
+    actualAudioQuality.value = `${location} · Audio: detecting`
     void rendererInvoke<string, { format: string | null, sampleRate: number | null, bitsPerSample: number | null, bitrate: number | null } | null>(WIN_MAIN_RENDERER_EVENT_NAME.probe_audio_quality, url).then(result => {
       if (probeSequence !== qualityProbeSequence || musicInfo !== playMusicInfo.musicInfo) return
-      if (!result?.format) { actualAudioQuality.value = '音质：未知'; return }
+      if (!result?.format) { actualAudioQuality.value = `${location} · Audio: unknown`; return }
       const parts = [result.format.toUpperCase()]
       if (result.bitsPerSample) parts.push(`${result.bitsPerSample} bit`)
       if (result.sampleRate) parts.push(`${result.sampleRate / 1000} kHz`)
       if (result.bitrate) parts.push(`${Math.round(result.bitrate / 1000)} kbps`)
-      actualAudioQuality.value = `音频格式：${parts.join(' · ')}`
-    }).catch(() => { if (probeSequence === qualityProbeSequence) actualAudioQuality.value = '音质：未知' })
+      actualAudioQuality.value = `${location} · ${parts.join(' · ')}`
+    }).catch(() => { if (probeSequence === qualityProbeSequence) actualAudioQuality.value = `${location} · Audio: unknown` })
   }).catch((err: any) => {
     console.log(err)
     setAllStatus(err.message)

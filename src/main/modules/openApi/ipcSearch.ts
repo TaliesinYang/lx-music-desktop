@@ -30,6 +30,9 @@ mainHandle('open_api:source_result', async({ params }: { params: { requestId: nu
 mainHandle('open_api:probe_url_result', async({ params }: { params: { requestId: number; result?: any; error?: string } }) => {
   resolvePending(params)
 })
+mainHandle('open_api:downloads_result', async({ params }: { params: { requestId: number; result?: any; error?: string } }) => {
+  resolvePending(params)
+})
 
 const resolvePending = (params: { requestId: number; result?: any; error?: string }) => {
   const p = pending.get(params.requestId)
@@ -76,4 +79,7 @@ export const sourcesViaIpc = (win: Electron.BrowserWindow, id?: string): Promise
 
 export const probeUrlViaIpc = (win: Electron.BrowserWindow, musicInfo: any, quality: string): Promise<any> => {
   return sendRequest(win, 'open_api:probe_url_request', { musicInfo, quality })
+}
+export const downloadsViaIpc = (win: Electron.BrowserWindow, musicInfos?: any[], quality?: string, listId?: string): Promise<any> => {
+  return sendRequest(win, 'open_api:downloads_request', { musicInfos, quality, listId })
 }
