@@ -196,6 +196,18 @@ export const sendQueueRequest = async(): Promise<any> => {
   return queueViaIpc(browserWindow)
 }
 
+export const sendSourcesRequest = async(id?: string): Promise<any> => {
+  if (!browserWindow) throw new Error('main window is undefined')
+  const { sourcesViaIpc } = await import('@main/modules/openApi/ipcSearch')
+  return sourcesViaIpc(browserWindow, id)
+}
+
+export const sendProbeUrlRequest = async(musicInfo: any, quality: string): Promise<string> => {
+  if (!browserWindow) throw new Error('main window is undefined')
+  const { probeUrlViaIpc } = await import('@main/modules/openApi/ipcSearch')
+  return probeUrlViaIpc(browserWindow, musicInfo, quality)
+}
+
 export const showSelectDialog = async(options: Electron.OpenDialogOptions) => {
   if (!browserWindow) throw new Error('main window is undefined')
   return dialog.showOpenDialog(browserWindow, options)

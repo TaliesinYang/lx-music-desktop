@@ -11,6 +11,9 @@ import { setMusicUrl } from '@renderer/core/player'
 import { setPlay, setStop } from '@renderer/plugins/player'
 import { playInfo, playMusicInfo, musicInfo as _musicInfo } from '@renderer/store/player/state'
 import { getPicPath, getLyricInfo } from '@renderer/core/music'
+import { getMusicUrl } from '@renderer/core/music'
+import { setUserApi } from '@renderer/core/apiSource'
+import { apiSource, userApi } from '@renderer/store'
 
 // ========== 搜索 ==========
 
@@ -51,7 +54,7 @@ const handlePlay = async({ requestId, listId, musicInfo, songs }: {
     window.lx.isPlayedStop &&= false
     setStop()
     window.app_event.pause()
-    await setMusicUrl(musicInfo)
+    await setMusicUrl(musicInfo, false, true)
     // URL loaded, now play
     setPlay()
     // Load pic & lyric (fire-and-forget, same as internal handlePlay)
@@ -99,6 +102,34 @@ const handleQueue = async({ requestId }: { requestId: number }) => {
 // ========== 注册 ==========
 
 export default () => {
+  rendererOn<{ requestId: number; id?: string }>('open_api:source_request', ({ params }) => {
+    void (async() => {
+      try {
+        if (params.id) {
+          if (!userApi.list.some(item => item.id === params.id)) throw new Error('Unknown custom source')
+          await setUserApi(params.id)
+          const ready = await window.lx.apiInitPromise[0]
+          await rendererInvoke('open_api:source_result', { requestId: params.requestId, result: { active: apiSource.value, ready: Boolean(ready) } })
+        } else {
+          await rendererInvoke('open_api:source_result', { requestId: params.requestId, result: { active: apiSource.value, ready: userApi.status, sources: userApi.list.map(({ id, name, version }) => ({ id, name, version })) } })
+        }
+      } catch (error: any) {
+        await rendererInvoke('open_api:source_result', { requestId: params.requestId, error: error.message || 'Source request failed' })
+      }
+    })()
+  })
+  rendererOn<{ requestId: number; musicInfo: LX.Music.MusicInfoOnline; quality: LX.Quality }>('open_api:probe_url_request', ({ params }) => {
+    void (async() => {
+      try {
+        const activeSource = apiSource.value
+        const url = await getMusicUrl({ musicInfo: params.musicInfo, quality: params.quality, isRefresh: true, allowToggleSource: false })
+        if (apiSource.value !== activeSource) throw new Error('Active source changed during the probe')
+        await rendererInvoke('open_api:probe_url_result', { requestId: params.requestId, result: url })
+      } catch (error: any) {
+        await rendererInvoke('open_api:probe_url_result', { requestId: params.requestId, error: error.message || 'Source probe failed' })
+      }
+    })()
+  })
   rendererOn<{ requestId: number; source: string; keyword: string; page: number; limit: number }>(
     channelSearchRequest,
     ({ params }) => handleSearch(params).catch(console.error),

@@ -4,7 +4,8 @@ import crypto from 'node:crypto'
 import querystring from 'node:querystring'
 import type { Socket } from 'node:net'
 import { getAddress } from '@common/utils/nodejs'
-import { sendTaskbarButtonClick, sendSearchRequest, sendPlayRequest, sendQueueRequest } from '@main/modules/winMain'
+import { sendTaskbarButtonClick, sendSearchRequest, sendPlayRequest, sendQueueRequest, sendSourcesRequest, sendProbeUrlRequest } from '@main/modules/winMain'
+import { probeAudioSourceInfo } from '@main/utils/audioSourceSampleRate'
 
 const sendResponse = (res: http.ServerResponse, code = 200, msg: string | Record<any, unknown> = 'OK', contentType = 'text/plain; charset=utf-8') => {
   res.writeHead(code, {
@@ -544,7 +545,7 @@ const handleStartServer = async(port: number, ip: string) => new Promise<void>((
     const [endUrl, query] = (req.url ?? '/').split('?')
     // New playlist/search endpoints are local automation APIs. Browser pages
     // cannot call them: require a non-simple header and reject all origins.
-    const isExtension = endUrl === '/search' || endUrl === '/playlists' || endUrl.startsWith('/playlist/') || endUrl.startsWith('/player/')
+    const isExtension = endUrl === '/search' || endUrl === '/playlists' || endUrl === '/sources' || endUrl.startsWith('/sources/') || endUrl.startsWith('/audio/') || endUrl.startsWith('/playlist/') || endUrl.startsWith('/player/')
     if (isExtension) {
       const address = req.socket.remoteAddress ?? ''
       const host = req.headers.host ?? ''
@@ -554,6 +555,9 @@ const handleStartServer = async(port: number, ip: string) => new Promise<void>((
         sendResponse(res, 403, 'Local automation only')
         return
       }
+      // Search and renderer IPC can legitimately take longer than the normal
+      // four-second socket timeout, especially when a source is slow.
+      req.socket.setTimeout(45000)
     }
     let code = 200
     let msg = 'OK'
@@ -671,6 +675,40 @@ const handleStartServer = async(port: number, ip: string) => new Promise<void>((
           msg = 'Error'
         }
         break
+      case '/sources': {
+        if (req.method !== 'GET') { sendResponse(res, 405, 'Method not allowed'); return }
+        void sendSourcesRequest().then(result => sendResponse(res, 200, result, 'application/json; charset=utf-8')).catch(err => sendResponse(res, 500, { error: true, message: err.message }, 'application/json; charset=utf-8'))
+        return
+      }
+      case '/sources/select': {
+        if (req.method !== 'POST') { sendResponse(res, 405, 'Method not allowed'); return }
+        void (async() => {
+          try {
+            const { id } = await parseBody(req)
+            if (typeof id !== 'string' || !/^user_api_[a-zA-Z0-9_]+$/.test(id)) { sendResponse(res, 400, 'Invalid source id'); return }
+            const result = await sendSourcesRequest(id)
+            sendResponse(res, 200, result, 'application/json; charset=utf-8')
+          } catch (err: any) { sendResponse(res, 500, { error: true, message: err.message }, 'application/json; charset=utf-8') }
+        })()
+        return
+      }
+      case '/audio/probe': {
+        if (req.method !== 'POST') { sendResponse(res, 405, 'Method not allowed'); return }
+        void (async() => {
+          try {
+            const { musicInfo, quality } = await parseBody(req)
+            if (!musicInfo || typeof musicInfo.id !== 'string' || !['kw', 'kg', 'mg', 'tx', 'wy'].includes(musicInfo.source) || !musicInfo.meta || !['128k', '320k', 'flac', 'flac24bit'].includes(quality)) {
+              sendResponse(res, 400, { error: true, message: 'Invalid musicInfo or quality' }, 'application/json; charset=utf-8'); return
+            }
+            const url = await sendProbeUrlRequest(musicInfo, quality)
+            if (typeof url !== 'string' || url.length > 8192 || !/^https?:\/\//i.test(url)) throw new Error('Source did not return a valid HTTP audio URL')
+            const probe = await probeAudioSourceInfo(url)
+            const verified = !probe.error && probe.formatSource === 'header'
+            sendResponse(res, 200, { requested: quality, verified, format: verified ? probe.format : null, sampleRate: verified ? probe.sampleRate : null, bitsPerSample: verified ? probe.bitsPerSample : null, bitrate: verified ? probe.bitrate : null, error: probe.error }, 'application/json; charset=utf-8')
+          } catch (err: any) { sendResponse(res, 502, { error: true, message: err.message }, 'application/json; charset=utf-8') }
+        })()
+        return
+      }
       case '/search': {
         const params = querystring.parse(query ?? '')
         const keyword = params.keyword as string

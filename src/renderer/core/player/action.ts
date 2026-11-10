@@ -128,7 +128,7 @@ const getMusicPlayUrl = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListIt
   })
 }
 
-export const setMusicUrl = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, isRefresh?: boolean): Promise<void> | void => {
+export const setMusicUrl = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, isRefresh?: boolean, rejectOnError = false): Promise<void> | void => {
   // if (appSetting['player.autoSkipOnError']) addLoadTimeout()
   if (!diffCurrentMusicInfo(musicInfo)) return
   const probeSequence = ++qualityProbeSequence
@@ -136,7 +136,10 @@ export const setMusicUrl = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem
   if (cancelDelayRetry) cancelDelayRetry()
   gettingUrlId = createGettingUrlId(musicInfo)
   return getMusicPlayUrl(musicInfo, isRefresh).then((url) => {
-    if (!url) return
+    if (!url) {
+      if (rejectOnError) throw new Error('No playable audio URL was returned')
+      return
+    }
     setResource(url)
     void rendererInvoke<string, { format: string | null, sampleRate: number | null, bitsPerSample: number | null, bitrate: number | null } | null>(WIN_MAIN_RENDERER_EVENT_NAME.probe_audio_quality, url).then(result => {
       if (probeSequence !== qualityProbeSequence || musicInfo !== playMusicInfo.musicInfo) return
@@ -152,6 +155,7 @@ export const setMusicUrl = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem
     setAllStatus(err.message)
     window.app_event.error()
     if (appSetting['player.autoSkipOnError']) addDelayNextTimeout()
+    if (rejectOnError) throw err
   }).finally(() => {
     if (musicInfo === playMusicInfo.musicInfo) {
       gettingUrlId = ''
