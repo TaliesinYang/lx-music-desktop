@@ -15,6 +15,7 @@ new Function('module', 'exports', 'require', 'global', js)(m, m.exports, n => mo
 const request = (port, pathname, options = {}) => new Promise((resolve, reject) => {
  const req = http.request({ host: '127.0.0.1', port, path: pathname, method: options.method || 'GET', headers: options.headers || {} }, res => { let data = ''; res.on('data', x => data += x); res.on('end', () => resolve({ status: res.statusCode, data })) }); req.on('error', reject); req.end(options.body)
 })
+mocks['@main/modules/winMain'].sendDownloadsRequest = async (musicInfos, quality) => musicInfos ? [{id:'task_1',status:'waiting',quality}] : [{id:'task_1',status:'completed'}]
 test('local control guards, playlist creation, additions and multi-source searches', async () => {
  const port=24763; await m.exports.startServer(port, false)
  const headers={'x-lx-local-control':'1'}
@@ -24,9 +25,13 @@ test('local control guards, playlist creation, additions and multi-source search
   assert.equal((await request(port, '/audio/probe', {method:'POST',headers:{...headers, origin:'https://example.com'}})).status, 403)
   assert.equal((await request(port, '/playlists', {headers:{...headers, origin:'https://example.com'}})).status, 403)
   assert.equal((await request(port, '/playlists', {headers:{...headers, host:'evil.example'}})).status, 403)
+  assert.equal((await request(port, '/downloads')).status, 403)
   const allowed=await request(port, '/playlists', {headers})
   assert.equal(allowed.status, 200); assert.equal(JSON.parse(allowed.data)[0].name, 'Test')
   const post={...headers,'content-type':'application/json'}
+  const downloads=await request(port,'/downloads',{headers}); assert.equal(downloads.status,200); assert.equal(JSON.parse(downloads.data)[0].status,'completed')
+  assert.equal((await request(port,'/downloads',{method:'POST',headers:post,body:JSON.stringify({musicInfos:[{id:'x',source:'local'}],quality:'flac'})})).status,400)
+  const enqueue=await request(port,'/downloads',{method:'POST',headers:post,body:JSON.stringify({musicInfos:[{id:'wy_1',source:'wy',name:'A',singer:'B',meta:{}}],quality:'flac'})}); assert.equal(enqueue.status,200); assert.equal(JSON.parse(enqueue.data).downloads[0].quality,'flac')
   const created=await request(port, '/playlist/create', {method:'POST',headers:post,body:JSON.stringify({name:'测试'})})
   assert.equal(created.status,200); assert.equal(calls[0][2][0].name,'测试')
   const added=await request(port, '/playlist/add', {method:'POST',headers:post,body:JSON.stringify({listId:'userlist_1',musicInfos:[{id:'tx_1'}]})})

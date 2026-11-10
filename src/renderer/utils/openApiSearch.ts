@@ -14,6 +14,7 @@ import { getPicPath, getLyricInfo } from '@renderer/core/music'
 import { getMusicUrl } from '@renderer/core/music'
 import { setUserApi } from '@renderer/core/apiSource'
 import { apiSource, userApi } from '@renderer/store'
+import { createDownloadTasks, getDownloadList } from '@renderer/store/download/action'
 
 // ========== 搜索 ==========
 
@@ -102,6 +103,19 @@ const handleQueue = async({ requestId }: { requestId: number }) => {
 // ========== 注册 ==========
 
 export default () => {
+  rendererOn<{ requestId: number; musicInfos?: LX.Music.MusicInfoOnline[]; quality?: LX.Quality; listId?: string }>('open_api:downloads_request', ({ params }) => {
+    void (async() => {
+      try {
+        await getDownloadList()
+        if (params.musicInfos?.length && params.quality) await createDownloadTasks(params.musicInfos, params.quality, params.listId, params.quality === 'flac' || params.quality === 'flac24bit')
+        const list = await getDownloadList()
+        const result = list.map(item => ({ id: item.id, status: item.status, progress: item.progress, isComplete: item.isComplate, quality: item.metadata.quality, filePath: item.metadata.filePath, musicInfo: item.metadata.musicInfo }))
+        await rendererInvoke('open_api:downloads_result', { requestId: params.requestId, result })
+      } catch (error: any) {
+        await rendererInvoke('open_api:downloads_result', { requestId: params.requestId, error: error.message || 'Download request failed' })
+      }
+    })()
+  })
   rendererOn<{ requestId: number; id?: string }>('open_api:source_request', ({ params }) => {
     void (async() => {
       try {

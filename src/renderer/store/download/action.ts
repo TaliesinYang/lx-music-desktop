@@ -17,6 +17,7 @@ import { arrPush, arrUnshift, joinPath } from '@renderer/utils'
 import { DOWNLOAD_STATUS } from '@common/constants'
 import { proxy } from '../index'
 import { buildSavePath } from './utils'
+import { filterLosslessDownloadTasks } from './downloadPolicy'
 
 const waitingUpdateTasks = new Map<string, LX.Download.ListItem>()
 let timer: NodeJS.Timeout | null = null
@@ -354,12 +355,15 @@ const filterTask = (list: LX.Download.ListItem[]) => {
  * @param list 要下载的歌曲
  * @param quality 下载音质
  */
-export const createDownloadTasks = async(list: LX.Music.MusicInfoOnline[], quality: LX.Quality, listId?: string) => {
+export const createDownloadTasks = async(list: LX.Music.MusicInfoOnline[], quality: LX.Quality, listId?: string, strictLossless = false) => {
   if (!list.length) return
-  const tasks = filterTask(await window.lx.worker.download.createDownloadTasks(list, quality,
+  const candidates = await window.lx.worker.download.createDownloadTasks(list, quality,
     appSetting['download.fileName'],
-    toRaw(qualityList.value), listId),
+    toRaw(qualityList.value), listId,
   )
+  const allowed = strictLossless ? filterLosslessDownloadTasks(candidates) : candidates
+  if (strictLossless && allowed.length !== candidates.length) throw new Error('Lossless quality is not available for every requested track; no tasks were created')
+  const tasks = filterTask(allowed)
 
   if (tasks.length) await addTasks(tasks)
   void checkStartTask()

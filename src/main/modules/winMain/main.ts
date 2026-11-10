@@ -207,6 +207,11 @@ export const sendProbeUrlRequest = async(musicInfo: any, quality: string): Promi
   const { probeUrlViaIpc } = await import('@main/modules/openApi/ipcSearch')
   return probeUrlViaIpc(browserWindow, musicInfo, quality)
 }
+export const sendDownloadsRequest = async(musicInfos?: any[], quality?: string, listId?: string): Promise<any> => {
+  if (!browserWindow) throw new Error('main window is undefined')
+  const { downloadsViaIpc } = await import('@main/modules/openApi/ipcSearch')
+  return downloadsViaIpc(browserWindow, musicInfos, quality, listId)
+}
 
 export const showSelectDialog = async(options: Electron.OpenDialogOptions) => {
   if (!browserWindow) throw new Error('main window is undefined')

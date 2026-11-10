@@ -1,13 +1,17 @@
 import { WIN_MAIN_RENDERER_EVENT_NAME } from '@common/ipcNames'
 import { mainHandle } from '@common/mainIpc'
 import { probeAudioSourceInfo } from '@main/utils/audioSourceSampleRate'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 
 export default () => {
   mainHandle<string, { format: string | null, sampleRate: number | null, bitsPerSample: number | null, bitrate: number | null } | null>(WIN_MAIN_RENDERER_EVENT_NAME.probe_audio_quality, async({ params }) => {
-    if (typeof params !== 'string' || params.length > 8192 || !/^https?:\/\//i.test(params)) return null
+    if (typeof params !== 'string' || params.length > 8192) return null
     try {
-      const result = await probeAudioSourceInfo(params)
+      const source = /^file:/i.test(params) ? fileURLToPath(params) : params
+      if (!/^https?:\/\//i.test(source) && !path.isAbsolute(source)) return null
+      const result = await probeAudioSourceInfo(source)
       if (result.error || result.formatSource !== 'header') return null
       return { format: result.format, sampleRate: result.sampleRate, bitsPerSample: result.bitsPerSample, bitrate: result.bitrate }
     } catch { return null }

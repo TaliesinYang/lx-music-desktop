@@ -4,7 +4,7 @@ import crypto from 'node:crypto'
 import querystring from 'node:querystring'
 import type { Socket } from 'node:net'
 import { getAddress } from '@common/utils/nodejs'
-import { sendTaskbarButtonClick, sendSearchRequest, sendPlayRequest, sendQueueRequest, sendSourcesRequest, sendProbeUrlRequest } from '@main/modules/winMain'
+import { sendTaskbarButtonClick, sendSearchRequest, sendPlayRequest, sendQueueRequest, sendSourcesRequest, sendProbeUrlRequest, sendDownloadsRequest } from '@main/modules/winMain'
 import { probeAudioSourceInfo } from '@main/utils/audioSourceSampleRate'
 
 const sendResponse = (res: http.ServerResponse, code = 200, msg: string | Record<any, unknown> = 'OK', contentType = 'text/plain; charset=utf-8') => {
@@ -545,7 +545,7 @@ const handleStartServer = async(port: number, ip: string) => new Promise<void>((
     const [endUrl, query] = (req.url ?? '/').split('?')
     // New playlist/search endpoints are local automation APIs. Browser pages
     // cannot call them: require a non-simple header and reject all origins.
-    const isExtension = endUrl === '/search' || endUrl === '/playlists' || endUrl === '/sources' || endUrl.startsWith('/sources/') || endUrl.startsWith('/audio/') || endUrl.startsWith('/playlist/') || endUrl.startsWith('/player/')
+    const isExtension = endUrl === '/search' || endUrl === '/playlists' || endUrl === '/downloads' || endUrl === '/sources' || endUrl.startsWith('/sources/') || endUrl.startsWith('/audio/') || endUrl.startsWith('/playlist/') || endUrl.startsWith('/player/')
     if (isExtension) {
       const address = req.socket.remoteAddress ?? ''
       const host = req.headers.host ?? ''
@@ -562,6 +562,30 @@ const handleStartServer = async(port: number, ip: string) => new Promise<void>((
     let code = 200
     let msg = 'OK'
     switch (endUrl) {
+      case '/downloads': {
+        if (req.method !== 'GET' && req.method !== 'POST') {
+          sendResponse(res, 405, { error: true, message: 'Use GET or POST' }, 'application/json; charset=utf-8')
+          return
+        }
+        void (async() => {
+          try {
+            if (req.method === 'GET') {
+              sendResponse(res, 200, await sendDownloadsRequest(), 'application/json; charset=utf-8')
+              return
+            }
+            const { musicInfos, quality, listId } = await parseBody(req)
+            if (!Array.isArray(musicInfos) || !musicInfos.length || musicInfos.length > 20 || !musicInfos.every(m => m && typeof m.id === 'string' && ['kw', 'kg', 'tx', 'wy', 'mg'].includes(m.source) && m.meta && typeof m.name === 'string' && typeof m.singer === 'string') || !['128k', '320k', 'flac', 'flac24bit'].includes(quality) || (listId != null && typeof listId !== 'string')) {
+              sendResponse(res, 400, { error: true, message: 'Invalid musicInfos, quality or listId' }, 'application/json; charset=utf-8')
+              return
+            }
+            const list = await sendDownloadsRequest(musicInfos, quality, listId)
+            sendResponse(res, 200, { downloads: list }, 'application/json; charset=utf-8')
+          } catch (error: any) {
+            sendResponse(res, 500, { error: true, message: error.message || 'Download request failed' }, 'application/json; charset=utf-8')
+          }
+        })()
+        return
+      }
       case '/status':
         handleSendStatus(res, query)
         return
