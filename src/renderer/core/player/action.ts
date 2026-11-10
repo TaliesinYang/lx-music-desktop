@@ -128,14 +128,14 @@ const getMusicPlayUrl = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListIt
   })
 }
 
-export const setMusicUrl = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, isRefresh?: boolean) => {
+export const setMusicUrl = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, isRefresh?: boolean): Promise<void> | void => {
   // if (appSetting['player.autoSkipOnError']) addLoadTimeout()
   if (!diffCurrentMusicInfo(musicInfo)) return
   const probeSequence = ++qualityProbeSequence
   actualAudioQuality.value = '音质：检测中'
   if (cancelDelayRetry) cancelDelayRetry()
   gettingUrlId = createGettingUrlId(musicInfo)
-  void getMusicPlayUrl(musicInfo, isRefresh).then((url) => {
+  return getMusicPlayUrl(musicInfo, isRefresh).then((url) => {
     if (!url) return
     setResource(url)
     void rendererInvoke<string, { format: string | null, sampleRate: number | null, bitsPerSample: number | null, bitrate: number | null } | null>(WIN_MAIN_RENDERER_EVENT_NAME.probe_audio_quality, url).then(result => {
