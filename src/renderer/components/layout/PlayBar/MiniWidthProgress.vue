@@ -8,7 +8,7 @@
       <div :class="$style.title" :aria-label="title + $t('copy_tip')" @click="handleCopy(title)">
         {{ title }}
       </div>
-      <div :class="$style.status">{{ statusText }}</div>
+      <div :class="$style.status">{{ actualAudioQuality }} {{ statusText }}</div>
     </div>
     <!-- <div :class="$style.timeContainer">
       <div :class="$style.timeContent">
@@ -55,6 +55,7 @@ import usePlayProgress from '@renderer/utils/compositions/usePlayProgress'
 // import { lyric } from '@renderer/core/share/lyric'
 import {
   statusText,
+  actualAudioQuality,
   musicInfo,
   isShowPlayerDetail,
   isPlay,
@@ -133,6 +134,7 @@ export default {
       handleCopy,
       imgError,
       statusText,
+      actualAudioQuality,
       title,
       showPlayerDetail,
       isPlay,

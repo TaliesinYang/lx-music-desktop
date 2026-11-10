@@ -1,8 +1,17 @@
 import { WIN_MAIN_RENDERER_EVENT_NAME } from '@common/ipcNames'
 import { mainHandle } from '@common/mainIpc'
+import { probeAudioSourceInfo } from '@main/utils/audioSourceSampleRate'
 
 
 export default () => {
+  mainHandle<string, { format: string | null, sampleRate: number | null, bitsPerSample: number | null, bitrate: number | null } | null>(WIN_MAIN_RENDERER_EVENT_NAME.probe_audio_quality, async({ params }) => {
+    if (typeof params !== 'string' || params.length > 8192 || !/^https?:\/\//i.test(params)) return null
+    try {
+      const result = await probeAudioSourceInfo(params)
+      if (result.error || result.formatSource !== 'header') return null
+      return { format: result.format, sampleRate: result.sampleRate, bitsPerSample: result.bitsPerSample, bitrate: result.bitrate }
+    } catch { return null }
+  })
   // =========================歌词=========================
   mainHandle<string, LX.Player.LyricInfo>(WIN_MAIN_RENDERER_EVENT_NAME.get_palyer_lyric, async({ params: id }) => {
     // return (getStore(LRC_EDITED, true, false).get(id) as LX.Music.LyricInfo | undefined) ??

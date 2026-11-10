@@ -43,6 +43,7 @@ const modules = {
     clear_dislike_music_infos: 'clear_dislike_music_infos',
   },
   winMain: {
+    probe_audio_quality: 'probe_audio_quality',
     focus: 'focus',
     close: 'close',
     min: 'min',

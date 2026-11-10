@@ -33,6 +33,7 @@ export const isPlay = ref(false)
 export const status = window.lxData.status = ref('')
 
 export const statusText = ref('')
+export const actualAudioQuality = ref('')
 
 export const isShowPlayerDetail = ref(false)
 
