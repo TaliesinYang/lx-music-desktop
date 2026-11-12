@@ -6,8 +6,9 @@ import type { Socket } from 'node:net'
 import { getAddress } from '@common/utils/nodejs'
 import { sendTaskbarButtonClick, sendSearchRequest, sendPlayRequest, sendQueueRequest, sendSourcesRequest, sendProbeUrlRequest, sendDownloadsRequest } from '@main/modules/winMain'
 import { probeAudioSourceInfo } from '@main/utils/audioSourceSampleRate'
+import { clearListeningHistory, getListeningHistory, getListeningStats } from '@main/modules/listeningHistory'
 
-const sendResponse = (res: http.ServerResponse, code = 200, msg: string | Record<any, unknown> = 'OK', contentType = 'text/plain; charset=utf-8') => {
+const sendResponse = (res: http.ServerResponse, code = 200, msg: string | Record<any, unknown> | unknown[] = 'OK', contentType = 'text/plain; charset=utf-8') => {
   res.writeHead(code, {
     'Content-Type': contentType,
     'Access-Control-Allow-Origin': '*',
@@ -545,7 +546,7 @@ const handleStartServer = async(port: number, ip: string) => new Promise<void>((
     const [endUrl, query] = (req.url ?? '/').split('?')
     // New playlist/search endpoints are local automation APIs. Browser pages
     // cannot call them: require a non-simple header and reject all origins.
-    const isExtension = endUrl === '/search' || endUrl === '/playlists' || endUrl === '/downloads' || endUrl === '/sources' || endUrl.startsWith('/sources/') || endUrl.startsWith('/audio/') || endUrl.startsWith('/playlist/') || endUrl.startsWith('/player/')
+    const isExtension = endUrl === '/search' || endUrl === '/playlists' || endUrl === '/downloads' || endUrl === '/history' || endUrl.startsWith('/history/') || endUrl === '/sources' || endUrl.startsWith('/sources/') || endUrl.startsWith('/audio/') || endUrl.startsWith('/playlist/') || endUrl.startsWith('/player/')
     if (isExtension) {
       const address = req.socket.remoteAddress ?? ''
       const host = req.headers.host ?? ''
@@ -562,6 +563,23 @@ const handleStartServer = async(port: number, ip: string) => new Promise<void>((
     let code = 200
     let msg = 'OK'
     switch (endUrl) {
+      case '/history':
+      case '/history/stats': {
+        if (req.method !== 'GET') { sendResponse(res, 405, { error: true, message: 'Use GET' }, 'application/json; charset=utf-8'); return }
+        const raw = querystring.parse(query ?? '').limit
+        const limit = raw == null ? 50 : Number(raw)
+        if (!Number.isInteger(limit) || limit < 1 || limit > 200) { sendResponse(res, 400, { error: true, message: 'Invalid limit' }, 'application/json; charset=utf-8'); return }
+        try {
+          const result = endUrl === '/history' ? getListeningHistory(limit) : getListeningStats(limit)
+          sendResponse(res, 200, result, 'application/json; charset=utf-8')
+        } catch (error: any) { sendResponse(res, 500, { error: true, message: error.message || 'History unavailable' }, 'application/json; charset=utf-8') }
+        return
+      }
+      case '/history/clear': {
+        if (req.method !== 'POST') { sendResponse(res, 405, { error: true, message: 'Use POST' }, 'application/json; charset=utf-8'); return }
+        try { clearListeningHistory(); sendResponse(res, 200, { ok: true }, 'application/json; charset=utf-8') } catch (error: any) { sendResponse(res, 500, { error: true, message: error.message || 'Clear failed' }, 'application/json; charset=utf-8') }
+        return
+      }
       case '/downloads': {
         if (req.method !== 'GET' && req.method !== 'POST') {
           sendResponse(res, 405, { error: true, message: 'Use GET or POST' }, 'application/json; charset=utf-8')

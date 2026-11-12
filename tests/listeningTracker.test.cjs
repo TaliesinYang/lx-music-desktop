@@ -1,0 +1,27 @@
+const { test } = require('node:test')
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const ts = require('typescript')
+const source = fs.readFileSync('src/renderer/core/useApp/usePlayer/listeningTracker.ts','utf8')
+const js = ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText
+const m={exports:{}};new Function('module','exports',js)(m,m.exports)
+test('counts once after 30 seconds of actual listening',()=>{
+ const t=m.exports.createListeningTracker();t.start();t.sample(0,0,240,1)
+ assert.equal(t.sample(29,29000,240,1),false)
+ assert.equal(t.sample(30,30000,240,1),true)
+ assert.equal(t.sample(31,31000,240,1),false)
+})
+test('short songs use half the duration; seek and pause do not count',()=>{
+ const t=m.exports.createListeningTracker();t.start();t.sample(0,0,20,1);t.sample(4,4000,20,1)
+ t.suspend();t.start();t.sample(15,120000,20,1)
+ assert.equal(t.sample(19,124000,20,1),false)
+ t.seek();t.sample(0,125000,20,1)
+ assert.equal(t.sample(2,127000,20,1),true)
+})
+test('seek jumps and accelerated playback cannot inflate wall listening time',()=>{
+ const t=m.exports.createListeningTracker();t.start();t.sample(0,0,100,2)
+ assert.equal(t.sample(60,1000,100,2),false)
+ assert.equal(t.sample(100,21000,100,2),false)
+ assert.equal(t.sample(120,31000,100,2),true)
+ t.reset();t.start();t.sample(0,40000,100,1);assert.equal(t.sample(29,69000,100,1),false)
+})

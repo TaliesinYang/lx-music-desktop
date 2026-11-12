@@ -550,6 +550,12 @@ export const onTimeupdate = (callback: Noop) => {
   }
 }
 
+export const onSeeking = (callback: Noop) => {
+  if (!audio) throw new Error('audio not defined')
+  audio.addEventListener('seeking', callback)
+  return () => { audio?.removeEventListener('seeking', callback) }
+}
+
 // 缓冲中
 export const onWaiting = (callback: Noop) => {
   if (!audio) throw new Error('audio not defined')

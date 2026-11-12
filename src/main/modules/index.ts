@@ -5,11 +5,13 @@ import registerTray from './tray'
 import registerAppMenu from './appMenu'
 import registerWinLyric from './winLyric'
 import registerCommonRenderers from './commonRenderers'
+import registerListeningHistory from './listeningHistory'
 
 let isRegistered = false
 export default () => {
   if (isRegistered) return
   registerUserApi()
+  registerListeningHistory()
   registerCommonRenderers()
   registerWinMain()
   registerHotKey()

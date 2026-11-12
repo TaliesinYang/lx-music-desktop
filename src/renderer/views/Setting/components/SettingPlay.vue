@@ -8,6 +8,9 @@ dd
   .gap-top
     base-checkbox(id="setting_player_save_play_time" :model-value="appSetting['player.isSavePlayTime']" :label="$t('setting__play_save_play_time')" @update:model-value="updateSetting({'player.isSavePlayTime': $event})")
   .gap-top
+    base-checkbox(id="setting_player_listening_history" :model-value="appSetting['player.listeningHistoryEnabled']" label="Save listening history on this device" @update:model-value="updateSetting({'player.listeningHistoryEnabled': $event})")
+    base-btn.gap-left(@click="clearListeningHistory") Clear listening history
+  .gap-top
     base-checkbox(id="setting_player_auto_clean_played_list" :model-value="appSetting['player.isAutoCleanPlayedList']" :label="$t('setting__play_auto_clean_played_list')" @update:model-value="updateSetting({'player.isAutoCleanPlayedList': $event})")
     svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__play_auto_clean_played_list_tip')")
   .gap-top
@@ -57,6 +60,7 @@ import { setPowerSaveBlocker } from '@renderer/core/player/utils'
 import { isPlay } from '@renderer/store/player/state'
 import { TRY_QUALITYS_LIST } from '@renderer/core/music/utils'
 import { isMac } from '@common/utils'
+import { rendererInvoke } from '@common/rendererIpc'
 
 
 export default {
@@ -64,6 +68,10 @@ export default {
   setup() {
     const t = useI18n()
     const playQualityList = [...TRY_QUALITYS_LIST, '128k'].reverse()
+    const clearListeningHistory = async() => {
+      const confirm = await dialog.confirm({ message: 'Clear all listening history on this device?', cancelButtonText: t('cancel_button_text'), confirmButtonText: t('confirm_button_text') })
+      if (confirm) await rendererInvoke('listening_history:clear')
+    }
 
     const mediaDevices = ref([])
     const getMediaDevice = async() => {
@@ -140,6 +148,7 @@ export default {
 
     return {
       appSetting,
+      clearListeningHistory,
       updateSetting,
       mediaDevices,
       mediaDeviceId,
