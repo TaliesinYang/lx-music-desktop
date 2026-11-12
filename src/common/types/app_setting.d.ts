@@ -179,6 +179,9 @@ declare global {
        */
       'player.isSavePlayTime': boolean
 
+      /** Store listening history locally. */
+      'player.listeningHistoryEnabled': boolean
+
       /**
        * 是否启用音频可视化
        */

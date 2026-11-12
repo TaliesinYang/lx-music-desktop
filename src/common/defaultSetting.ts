@@ -42,6 +42,7 @@ const defaultSetting: LX.AppSetting = {
   'player.isS2t': false,
   'player.isPlayLxlrc': !isMac,
   'player.isSavePlayTime': false,
+  'player.listeningHistoryEnabled': true,
   'player.audioVisualization': false,
   'player.waitPlayEndStop': true,
   'player.waitPlayEndStopTime': '',

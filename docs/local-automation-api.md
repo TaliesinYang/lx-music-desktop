@@ -10,6 +10,10 @@ The original Open API endpoints retain their existing behavior.
 - `GET /search?keyword=...&source=tx&limit=10` searches a music platform.
   Source may be `kw`, `kg`, `mg`, `tx`, `wy` or `all`.
 - `GET /playlists` lists user playlists.
+- `GET /history?limit=50` returns recent local listening events, newest first.
+- `GET /history/stats?limit=50` returns tracks ordered by play count, then
+  most recently played. Limits range from 1 to 200.
+- `POST /history/clear` permanently clears local listening history.
 - `GET /downloads` lists download tasks with status, quality and file path.
 - `POST /downloads` with `{"musicInfos":[...],"quality":"flac","listId":"..."}`
   queues up to 20 online search results using the existing download manager.
@@ -35,6 +39,14 @@ The original Open API endpoints retain their existing behavior.
 The source comparison should be sequential: select a source, wait for readiness,
 probe a matching song, then select the next source. Search results only contain
 platform-reported metadata; the probe checks the bytes actually returned.
+
+Listening history is stored only on the device in `LxDatas/listening-history.json`.
+Playback is counted once after the smaller of 30 seconds or half the track's
+duration has actually been heard. Pauses and seeking do not add time; tracks of
+unknown duration use 30 seconds. The setting under Playback can disable or clear
+history. Only the most recent 50,000 events are retained. History begins when
+the feature is installed; older listens cannot be recovered. These API endpoints
+are subject to the same loopback-only controls as other extended endpoints.
 
 Playlist playback prefers a completed download with the same platform and song
 ID when its file exists. Missing files fall back to online playback. This does
